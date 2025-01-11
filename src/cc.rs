@@ -582,6 +582,13 @@ impl<T: ?Sized, O: AbstractObjectSpace> Deref for RawCcBox<T, O> {
 fn drop_ccbox<T: ?Sized, O: AbstractObjectSpace>(cc_box: *mut RawCcBox<T, O>) {
     // safety: See Cc::new. The pointer was created by Box::into_raw.
     let cc_box: Box<RawCcBox<T, O>> = unsafe { Box::from_raw(cc_box) };
+    // hack: we shouldn't be there, but we have bug in reference counting code
+    if cc_box.is_dropped() {
+        debug::log(|| (cc_box.debug_name(), "double free detected (CcBoxWithGcHeader)"));
+        mem::forget(cc_box);
+        return;
+    }
+
     let is_tracked = cc_box.is_tracked();
     if is_tracked {
         // The real object is CcBoxWithGcHeader. Drop that instead.
