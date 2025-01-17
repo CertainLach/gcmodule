@@ -63,16 +63,16 @@ fn test_simple_tracked() {
 fn test_simple_cycles() {
     assert_eq!(collect::collect_thread_cycles(), 0);
     {
-        let a: Cc<RefCell<Vec<Box<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
-        let b: Cc<RefCell<Vec<Box<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
+        let a: Cc<RefCell<Vec<TraceBox<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
+        let b: Cc<RefCell<Vec<TraceBox<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
         assert_eq!(collect::collect_thread_cycles(), 0);
         {
             let mut a = a.borrow_mut();
-            a.push(Box::new(b.clone()));
+            a.push(TraceBox(Box::new(b.clone())));
         }
         {
             let mut b = b.borrow_mut();
-            b.push(Box::new(a.clone()));
+            b.push(TraceBox(Box::new(a.clone())));
         }
         assert_eq!(collect::collect_thread_cycles(), 0);
         assert_eq!(collect::count_thread_tracked(), 2);
@@ -140,12 +140,12 @@ fn test_weakref_without_cycles() {
 fn test_weakref_with_cycles() {
     let log = debug::capture_log(|| {
         debug::NEXT_DEBUG_NAME.with(|n| n.set(1));
-        let a: Cc<RefCell<Vec<Box<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
+        let a: Cc<RefCell<Vec<TraceBox<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
         assert_eq!(a.strong_count(), 1);
         debug::NEXT_DEBUG_NAME.with(|n| n.set(2));
-        let b: Cc<RefCell<Vec<Box<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
-        a.borrow_mut().push(Box::new(b.clone()));
-        b.borrow_mut().push(Box::new(a.clone()));
+        let b: Cc<RefCell<Vec<TraceBox<dyn Trace>>>> = Cc::new(RefCell::new(Vec::new()));
+        a.borrow_mut().push(TraceBox(Box::new(b.clone())));
+        b.borrow_mut().push(TraceBox(Box::new(a.clone())));
         assert_eq!(a.strong_count(), 2);
         assert_eq!(a.weak_count(), 0);
         let wa = a.downgrade();
@@ -456,7 +456,7 @@ fn test_update_with() {
 
 #[derive(Default)]
 struct DuplicatedVisits {
-    a: RefCell<Option<Box<dyn Trace>>>,
+    a: RefCell<Option<TraceBox<dyn Trace>>>,
     extra_times: Cell<usize>,
 }
 impl Trace for DuplicatedVisits {
@@ -492,7 +492,7 @@ fn capture_panic_message<R, F: Fn() -> R + panic::UnwindSafe>(func: F) -> String
 fn test_trace_impl_double_visits() {
     let v: Cc<DuplicatedVisits> = Default::default();
     v.extra_times.set(1);
-    *(v.a.borrow_mut()) = Some(Box::new(v.clone()));
+    *(v.a.borrow_mut()) = Some(TraceBox(Box::new(v.clone())));
 
     let message = capture_panic_message(|| collect::collect_thread_cycles());
     assert!(message.contains("bug: unexpected ref-count after dropping cycles"));

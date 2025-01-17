@@ -1,12 +1,13 @@
 use super::*;
 use crate::debug;
 use crate::Trace;
+use crate::TraceBox;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread::spawn;
 
-type List = ThreadedCc<Mutex<Vec<Box<dyn Trace + Send + Sync>>>>;
+type List = ThreadedCc<Mutex<Vec<TraceBox<dyn Trace + Send + Sync>>>>;
 
 fn test_cross_thread_cycle(n: usize) {
     let list: Arc<Mutex<Vec<List>>> = Arc::new(Mutex::new(Vec::with_capacity(n)));
@@ -25,9 +26,15 @@ fn test_cross_thread_cycle(n: usize) {
                 let cloned_other = other.clone();
                 let cloned_this = this.clone();
                 let this_ref = this.borrow();
-                this_ref.lock().unwrap().push(Box::new(cloned_other));
+                this_ref
+                    .lock()
+                    .unwrap()
+                    .push(TraceBox(Box::new(cloned_other)));
                 let other_ref = other.borrow();
-                other_ref.lock().unwrap().push(Box::new(cloned_this));
+                other_ref
+                    .lock()
+                    .unwrap()
+                    .push(TraceBox(Box::new(cloned_this)));
             }
             list.push(this);
         })
@@ -99,7 +106,7 @@ fn test_racy_threads(
                         if (create_cycles_bits >> i) & 1 == 1 {
                             for j in 0..thread_count {
                                 if j % (i + 1) == 0 {
-                                    let _ = tx_list[j].send(Box::new(acc.clone()));
+                                    let _ = tx_list[j].send(TraceBox(Box::new(acc.clone())));
                                 }
                             }
                         }

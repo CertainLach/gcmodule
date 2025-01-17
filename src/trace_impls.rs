@@ -1,3 +1,6 @@
+use std::borrow::{Borrow, BorrowMut};
+use std::ops::{Deref, DerefMut};
+
 use crate::trace::{Trace, Tracer};
 
 /// Mark types as acyclic. Opt-out the cycle collector.
@@ -108,7 +111,6 @@ mod borrow {
 
 mod boxed {
     use super::*;
-
     impl<T: Trace> Trace for Box<T> {
         fn trace(&self, tracer: &mut Tracer) {
             self.as_ref().trace(tracer);
@@ -117,40 +119,6 @@ mod boxed {
         #[inline]
         fn is_type_tracked() -> bool {
             T::is_type_tracked()
-        }
-    }
-
-    impl Trace for Box<dyn Trace> {
-        fn trace(&self, tracer: &mut Tracer) {
-            self.as_ref().trace(tracer);
-        }
-
-        #[inline]
-        fn is_type_tracked() -> bool {
-            // Trait objects can have complex non-atomic structure.
-            true
-        }
-    }
-
-    impl Trace for Box<dyn Trace + Send> {
-        fn trace(&self, tracer: &mut Tracer) {
-            self.as_ref().trace(tracer);
-        }
-
-        #[inline]
-        fn is_type_tracked() -> bool {
-            true
-        }
-    }
-
-    impl Trace for Box<dyn Trace + Send + Sync> {
-        fn trace(&self, tracer: &mut Tracer) {
-            self.as_ref().trace(tracer);
-        }
-
-        #[inline]
-        fn is_type_tracked() -> bool {
-            true
         }
     }
 }
@@ -486,10 +454,10 @@ mod tests {
         assert!(!<(bool, f64)>::is_type_tracked());
         assert!(!Cell::<u32>::is_type_tracked());
         assert!(!RefCell::<String>::is_type_tracked());
-        assert!(Box::<dyn Trace>::is_type_tracked());
-        assert!(RefCell::<Box::<dyn Trace>>::is_type_tracked());
-        assert!(RefCell::<Vec::<Box::<dyn Trace>>>::is_type_tracked());
-        assert!(Vec::<RefCell::<Box::<dyn Trace>>>::is_type_tracked());
+        assert!(TraceBox::<dyn Trace>::is_type_tracked());
+        assert!(RefCell::<TraceBox::<dyn Trace>>::is_type_tracked());
+        assert!(RefCell::<Vec::<TraceBox::<dyn Trace>>>::is_type_tracked());
+        assert!(Vec::<RefCell::<TraceBox::<dyn Trace>>>::is_type_tracked());
         assert!(!Cc::<u8>::is_type_tracked());
         assert!(!Vec::<Cc::<u8>>::is_type_tracked());
 
@@ -525,5 +493,64 @@ mod tests {
 
         assert!(!S1::is_type_tracked());
         assert!(S2::is_type_tracked());
+    }
+}
+
+/// Box, that assumes inner type is tracked
+///
+/// Exists because plain `Box<T>` only accepts sized `T`
+#[derive(Debug, Clone)]
+pub struct TraceBox<T: ?Sized>(pub Box<T>);
+
+impl<T: ?Sized + Trace> Trace for TraceBox<T> {
+    fn trace(&self, tracer: &mut Tracer<'_>) {
+        self.0.trace(tracer);
+    }
+
+    fn is_type_tracked() -> bool {
+        true
+    }
+}
+
+impl<T: ?Sized> From<Box<T>> for TraceBox<T> {
+    fn from(inner: Box<T>) -> Self {
+        Self(inner)
+    }
+}
+
+impl<T: ?Sized> Deref for TraceBox<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T: Trace + ?Sized> DerefMut for TraceBox<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T: ?Sized> Borrow<T> for TraceBox<T> {
+    fn borrow(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: ?Sized> BorrowMut<T> for TraceBox<T> {
+    fn borrow_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T: ?Sized> AsRef<T> for TraceBox<T> {
+    fn as_ref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: ?Sized> AsMut<T> for TraceBox<T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.0
     }
 }

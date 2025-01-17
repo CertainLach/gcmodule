@@ -40,6 +40,7 @@ pub trait RefCount: 'static {
     fn weak_count(&self) -> usize;
 }
 
+#[repr(C)]
 pub struct SingleThreadRefCount(Cell<usize>, Cell<usize>);
 
 impl SingleThreadRefCount {

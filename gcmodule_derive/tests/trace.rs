@@ -1,4 +1,4 @@
-use jrsonnet_gcmodule::{Cc, Trace, Tracer};
+use jrsonnet_gcmodule::{Cc, Trace, TraceBox, Tracer};
 use jrsonnet_gcmodule_derive::Trace as DeriveTrace;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -29,7 +29,7 @@ fn test_named_struct() {
 
     #[derive(DeriveTrace)]
     struct S1 {
-        a: Option<Box<dyn Trace>>,
+        a: Option<TraceBox<dyn Trace>>,
         b: (u32, u64),
     }
     assert!(S1::is_type_tracked());
@@ -42,14 +42,14 @@ fn test_type_parameters() {
         a: Option<T>,
     }
     assert!(!S0::<u8>::is_type_tracked());
-    assert!(S0::<Box<dyn Trace>>::is_type_tracked());
+    assert!(S0::<TraceBox<dyn Trace>>::is_type_tracked());
 
     #[derive(DeriveTrace)]
     struct S1<T: Trace> {
         a: Option<Rc<T>>,
     }
     assert!(!S1::<u8>::is_type_tracked());
-    assert!(!S1::<Box<dyn Trace>>::is_type_tracked());
+    assert!(!S1::<TraceBox<dyn Trace>>::is_type_tracked());
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn test_container_skip() {
 fn test_recursive_struct() {
     #[derive(DeriveTrace)]
     struct A {
-        b: Box<dyn Trace>,
+        b: TraceBox<dyn Trace>,
         #[trace(tracking(ignore))]
         a: Box<A>,
     }
@@ -109,7 +109,7 @@ fn test_recursive_struct() {
     #[derive(DeriveTrace)]
     #[trace(tracking(force))]
     struct C {
-        c: (Box<C>, Box<dyn Trace>),
+        c: (Box<C>, TraceBox<dyn Trace>),
     }
     assert!(C::is_type_tracked());
 }
@@ -121,21 +121,21 @@ fn test_unnamed_struct() {
     assert!(!S0::is_type_tracked());
 
     #[derive(DeriveTrace)]
-    struct S1(u8, Box<dyn Trace>);
+    struct S1(u8, TraceBox<dyn Trace>);
     assert!(S1::is_type_tracked());
 }
 
 #[test]
 fn test_real_cycles() {
     #[derive(DeriveTrace, Default)]
-    struct S(RefCell<Option<Box<dyn Trace>>>);
+    struct S(RefCell<Option<TraceBox<dyn Trace>>>);
     {
         let s1: Cc<S> = Default::default();
         let s2: Cc<S> = Default::default();
         let s3: Cc<S> = Default::default();
-        *(s1.0.borrow_mut()) = Some(Box::new(s2.clone()));
-        *(s2.0.borrow_mut()) = Some(Box::new(s3.clone()));
-        *(s3.0.borrow_mut()) = Some(Box::new(s1.clone()));
+        *(s1.0.borrow_mut()) = Some(TraceBox(Box::new(s2.clone())));
+        *(s2.0.borrow_mut()) = Some(TraceBox(Box::new(s3.clone())));
+        *(s3.0.borrow_mut()) = Some(TraceBox(Box::new(s1.clone())));
     }
     assert_eq!(jrsonnet_gcmodule::collect_thread_cycles(), 3);
 }

@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.3.7"
+version = "0.3.9"
 authors = ["Jun Wu <quark@lihdd.net>", "Yaroslav Bolyukin <iam@lach.pw>"]
 edition = "2021"
 license = "MIT"
@@ -21,7 +21,7 @@ readme = "README.md"
 quickcheck = { version = "1.0", default-features = false }
 
 [dependencies]
-jrsonnet-gcmodule-derive = { version = "0.3.7", optional = true, path = "gcmodule_derive" }
+jrsonnet-gcmodule-derive = { version = "0.3.9", optional = true, path = "gcmodule_derive" }
 parking_lot = { version = "0.12.3", optional = true }
 
 [features]

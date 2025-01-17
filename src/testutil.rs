@@ -1,5 +1,6 @@
 //! Test utilities.
 
+use crate::TraceBox;
 use crate::{collect, debug, Cc, Trace, Tracer};
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -29,7 +30,7 @@ pub(crate) fn create_objects(
     n: usize,
     atomic_bits: u16,
     drop_count: Arc<AtomicUsize>,
-) -> Vec<Cc<DropCounter<RefCell<Vec<Box<dyn Trace>>>>>> {
+) -> Vec<Cc<DropCounter<RefCell<Vec<TraceBox<dyn Trace>>>>>> {
     assert!(n <= 16);
     let is_tracked = |n| -> bool { (atomic_bits >> n) & 1 == 0 };
     (0..n)
@@ -73,7 +74,7 @@ pub fn test_small_graph(n: usize, edges: &[u8], atomic_bits: u16, collect_bits: 
                 (true, false) => continue,
             }
             let mut to = values[to_index].0.borrow_mut();
-            to.push(Box::new(values[from_index].clone()));
+            to.push(TraceBox(Box::new(values[from_index].clone())));
             edge_descs[to_index].push(from_index);
         }
         for (i, _value) in values.into_iter().enumerate() {
