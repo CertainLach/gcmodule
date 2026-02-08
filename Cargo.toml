@@ -22,7 +22,8 @@ quickcheck = { version = "1.0", default-features = false }
 
 [dependencies]
 jrsonnet-gcmodule-derive = { version = "0.4.0", optional = true, path = "gcmodule_derive" }
-parking_lot = { version = "0.12.3", optional = true }
+parking_lot = { version = "0.12.5", optional = true }
+rustc-hash = { version = "2.1.1", optional = true }
 
 [features]
 default = ["derive"]
@@ -31,6 +32,7 @@ derive = ["jrsonnet-gcmodule-derive"]
 nightly = []
 sync = ["parking_lot"]
 testutil = []
+rustc-hash = ["dep:rustc-hash"]
 
 [workspace]
 members = ["gcmodule_derive", "fuzz"]
