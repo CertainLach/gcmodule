@@ -1,10 +1,10 @@
-use crate::ref_count::{RefCount, REF_COUNT_MASK_DROPPED, REF_COUNT_MASK_TRACKED, REF_COUNT_SHIFT};
-use parking_lot::lock_api::RwLockReadGuard;
+use crate::ref_count::{REF_COUNT_MASK_DROPPED, REF_COUNT_MASK_TRACKED, REF_COUNT_SHIFT, RefCount};
 use parking_lot::RawRwLock;
 use parking_lot::RwLock;
+use parking_lot::lock_api::RwLockReadGuard;
+use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed};
-use std::sync::Arc;
 
 pub struct ThreadedRefCount {
     ref_count: AtomicUsize,

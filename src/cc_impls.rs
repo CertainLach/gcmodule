@@ -1,9 +1,9 @@
 //! Additional impls about `AbstractCc<T, O>` to make it easier to use.
 
-use crate::cc::RawCc;
-use crate::collect::ObjectSpace as O;
 use crate::Cc;
 use crate::Trace;
+use crate::cc::RawCc;
+use crate::collect::ObjectSpace as O;
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash;

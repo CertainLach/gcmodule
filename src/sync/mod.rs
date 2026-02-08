@@ -4,13 +4,13 @@ mod ref_count;
 #[cfg(test)]
 mod tests;
 
-use crate::cc::RawCc;
-use crate::ref_count::RefCount;
 use crate::Trace;
 use crate::Tracer;
+use crate::cc::RawCc;
+use crate::ref_count::RefCount;
 use collect::ThreadedObjectSpace;
-use parking_lot::lock_api::RwLockReadGuard;
 use parking_lot::RawRwLock;
+use parking_lot::lock_api::RwLockReadGuard;
 use std::marker::PhantomData;
 use std::ops::Deref;
 

@@ -1,11 +1,11 @@
 //! Test utilities.
 
 use crate::TraceBox;
-use crate::{collect, debug, Cc, Trace, Tracer};
+use crate::{Cc, Trace, Tracer, collect, debug};
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 thread_local!(static NEXT_TRACKED_OVERRIDE: Cell<bool> = Cell::new(true));
 

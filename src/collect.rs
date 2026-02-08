@@ -4,14 +4,14 @@
 
 // NOTE: Consider adding generation support if necessary. It won't be too hard.
 
+use crate::Cc;
+use crate::Trace;
 use crate::cc::CcDummy;
 use crate::cc::CcDyn;
 use crate::cc::GcClone;
 use crate::debug;
 use crate::ref_count::RefCount;
 use crate::ref_count::SingleThreadRefCount;
-use crate::Cc;
-use crate::Trace;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::cell::UnsafeCell;

@@ -1,10 +1,10 @@
 use super::*;
-use crate::debug;
 use crate::Trace;
 use crate::TraceBox;
-use std::sync::mpsc::channel;
+use crate::debug;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::mpsc::channel;
 use std::thread::spawn;
 
 type List = ThreadedCc<Mutex<Vec<TraceBox<dyn Trace + Send + Sync>>>>;

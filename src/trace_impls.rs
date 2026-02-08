@@ -112,6 +112,7 @@ mod borrow {
             T::Owned::is_type_tracked()
         }
     }
+    unsafe impl<T: ToOwned + ?Sized> Acyclic for Cow<'static, T> where T::Owned: Acyclic {}
 }
 
 mod boxed {
@@ -126,13 +127,14 @@ mod boxed {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic> Acyclic for Box<T> {}
 }
 
 mod cell {
     use super::*;
-    use std::cell;
+    use std::cell::{Cell, OnceCell, RefCell};
 
-    impl<T: Copy + Trace> Trace for cell::Cell<T> {
+    impl<T: Copy + Trace> Trace for Cell<T> {
         fn trace(&self, tracer: &mut Tracer) {
             self.get().trace(tracer);
         }
@@ -142,8 +144,9 @@ mod cell {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic + Copy> Acyclic for Cell<T> {}
 
-    impl<T: Trace> Trace for cell::RefCell<T> {
+    impl<T: Trace> Trace for RefCell<T> {
         fn trace(&self, tracer: &mut Tracer) {
             // If the RefCell is currently borrowed we
             // assume there's an outstanding reference to this
@@ -160,8 +163,9 @@ mod cell {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic> Acyclic for RefCell<T> {}
 
-    impl<T: Trace> Trace for cell::OnceCell<T> {
+    impl<T: Trace> Trace for OnceCell<T> {
         fn trace(&self, tracer: &mut Tracer) {
             if let Some(x) = self.get() {
                 x.trace(tracer)
@@ -173,14 +177,15 @@ mod cell {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic> Acyclic for OnceCell<T> {}
 }
 
 mod collections {
     use super::*;
-    use std::collections;
-    use std::hash;
+    use std::collections::{BTreeMap, HashMap, HashSet, LinkedList, VecDeque};
+    use std::hash::Hash;
 
-    impl<K: Trace, V: Trace> Trace for collections::BTreeMap<K, V> {
+    impl<K: Trace, V: Trace> Trace for BTreeMap<K, V> {
         fn trace(&self, tracer: &mut Tracer) {
             for (k, v) in self {
                 k.trace(tracer);
@@ -193,8 +198,23 @@ mod collections {
             K::is_type_tracked() || V::is_type_tracked()
         }
     }
+    unsafe impl<K: Acyclic, V: Acyclic> Acyclic for BTreeMap<K, V> {}
 
-    impl<K: Eq + hash::Hash + Trace, V: Trace> Trace for collections::HashMap<K, V> {
+    impl<K: Eq + Hash + Trace, H: 'static> Trace for HashSet<K, H> {
+        fn trace(&self, tracer: &mut Tracer) {
+            for k in self {
+                k.trace(tracer);
+            }
+        }
+
+        #[inline]
+        fn is_type_tracked() -> bool {
+            K::is_type_tracked()
+        }
+    }
+    unsafe impl<K: Acyclic + Hash + Eq, H: 'static> Acyclic for HashSet<K, H> {}
+
+    impl<K: Eq + Hash + Trace, V: Trace, H: 'static> Trace for HashMap<K, V, H> {
         fn trace(&self, tracer: &mut Tracer) {
             for (k, v) in self {
                 k.trace(tracer);
@@ -207,8 +227,9 @@ mod collections {
             K::is_type_tracked() || V::is_type_tracked()
         }
     }
+    unsafe impl<K: Acyclic + Hash + Eq, V: Acyclic, H: 'static> Acyclic for HashMap<K, V, H> {}
 
-    impl<T: Trace> Trace for collections::LinkedList<T> {
+    impl<T: Trace> Trace for LinkedList<T> {
         fn trace(&self, tracer: &mut Tracer) {
             for t in self {
                 t.trace(tracer);
@@ -220,8 +241,9 @@ mod collections {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic> Acyclic for LinkedList<T> {}
 
-    impl<T: Trace> Trace for collections::VecDeque<T> {
+    impl<T: Trace> Trace for VecDeque<T> {
         fn trace(&self, tracer: &mut Tracer) {
             for t in self {
                 t.trace(tracer);
@@ -233,7 +255,10 @@ mod collections {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic> Acyclic for VecDeque<T> {}
 }
+
+mod rustc_hash {}
 
 mod vec {
     use super::*;
@@ -249,6 +274,7 @@ mod vec {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic> Acyclic for Vec<T> {}
 }
 
 mod slice {
@@ -343,6 +369,7 @@ mod option {
             T::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic> Acyclic for Option<T> {}
 }
 
 mod path {
@@ -367,20 +394,12 @@ mod process {
 }
 
 mod rc {
-    use std::rc;
+    use std::rc::{Rc, Weak};
 
-    use crate::{Acyclic, Trace};
+    use crate::Acyclic;
 
-    impl<T: ?Sized + Acyclic + 'static> Trace for rc::Rc<T> {
-        fn is_type_tracked() -> bool
-        where
-            Self: Sized,
-        {
-            false
-        }
-    }
-
-    trace_acyclic!(<T> rc::Weak<T>);
+    trace_acyclic!(<T> Rc<T> where T: Acyclic + ?Sized);
+    trace_acyclic!(<T> Weak<T>);
 }
 
 mod result {
@@ -398,6 +417,7 @@ mod result {
             T::is_type_tracked() || U::is_type_tracked()
         }
     }
+    unsafe impl<T: Acyclic, U: Acyclic> Acyclic for Result<T, U> {}
 }
 
 mod sync {
@@ -460,9 +480,17 @@ mod thread {
 }
 
 mod phantom {
+    use super::*;
     use std::marker::PhantomData;
+    impl<T: 'static> Trace for PhantomData<T> {
+        fn trace(&self, _tracer: &mut Tracer) {}
 
-    trace_acyclic!(<T> PhantomData<T>);
+        #[inline]
+        fn is_type_tracked() -> bool {
+            false
+        }
+    }
+    unsafe impl<T: 'static> Acyclic for PhantomData<T> {}
 }
 
 #[cfg(test)]
