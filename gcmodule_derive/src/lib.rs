@@ -275,7 +275,7 @@ fn derive_trace(input: DeriveInput) -> Result<TokenStream2> {
     let is_type_tracked = force_is_type_tracked.unwrap_or(is_type_tracked);
     Ok(quote! {
         impl #impl_generics ::jrsonnet_gcmodule::Trace for #ident #type_generics #where_clause {
-            #[allow(unused_variables)]
+            #[allow(unused_variables, unused_assignments)]
             fn trace(&self, tracer: &mut ::jrsonnet_gcmodule::Tracer) {
                 match self {
                     #trace

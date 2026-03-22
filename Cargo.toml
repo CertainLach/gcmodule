@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Jun Wu <quark@lihdd.net>", "Yaroslav Bolyukin <iam@lach.pw>"]
 edition = "2024"
 license = "MIT"
