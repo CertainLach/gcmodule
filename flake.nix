@@ -29,31 +29,78 @@
             inherit system;
             overlays = [ inputs.fenix.overlays.default ];
           };
+          toolchain = pkgs.fenix.combine [
+            (pkgs.fenix.stable.withComponents [
+              "cargo"
+              "clippy"
+              "rustc"
+              "rust-src"
+            ])
+            pkgs.fenix.complete.rustfmt
+          ];
+          miriToolchain = pkgs.fenix.complete.withComponents [
+            "cargo"
+            "rustc"
+            "rust-src"
+            "miri"
+          ];
+          craneLib = (inputs.crane.mkLib pkgs).overrideToolchain toolchain;
+          miriCraneLib = (inputs.crane.mkLib pkgs).overrideToolchain miriToolchain;
+          src = craneLib.cleanCargoSource ./.;
         in
         {
-          shelly.shells.default = {
-            packages =
-              with pkgs;
-              [
+          # Won't pass with the updated tree borrows implementation
+          checks.miri = miriCraneLib.mkCargoDerivation ({
+            inherit src;
+            name = "miri-tests";
+            buildPhaseCargoCommand = ''
+              cargo miri test --features=nightly
+            '';
+            env.MIRIFLAGS = "-Zmiri-tree-borrows";
+
+            cargoArtifacts = null;
+            doInstallCargoArtifacts = false;
+
+            MIRI_SYSROOT = miriCraneLib.mkCargoDerivation {
+              pname = "miri-sysroot";
+              version = "0.0.0";
+              dontUnpack = true;
+              buildPhaseCargoCommand = ''
+                MIRI_SYSROOT=$out cargo miri setup
+              '';
+              dontFixup = true;
+              cargoLock = pkgs.runCommand "sysroot-cargoLock" { nativeBuildInputs = [ miriToolchain ]; } ''
+                cp `rustc --print sysroot`/lib/rustlib/src/rust/library/Cargo.lock $out
+              '';
+              cargoArtifacts = null;
+            };
+          });
+          shelly.shells = {
+            verification = {
+              factory = miriCraneLib.devShell;
+              packages =
+                with pkgs;
+                [
+                  cargo-edit
+                  lld
+                  hyperfine
+                  graphviz
+                  rust-analyzer-nightly
+                  cargo-fuzz
+                  cargo-edit
+                ]
+                ++ lib.optionals (!stdenv.isDarwin) [
+                  valgrind
+                ];
+            };
+            default = {
+              factory = craneLib.devShell;
+              packages = with pkgs; [
                 cargo-edit
-                lld
-                hyperfine
-                graphviz
-                (fenix.complete.withComponents [
-                  "cargo"
-                  "clippy"
-                  "rust-src"
-                  "rustc"
-                  "rustfmt"
-                  "miri"
-                ])
                 rust-analyzer-nightly
-                cargo-fuzz
                 cargo-edit
-              ]
-              ++ lib.optionals (!stdenv.isDarwin) [
-                valgrind
               ];
+            };
           };
         };
     };
