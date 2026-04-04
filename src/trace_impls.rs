@@ -180,6 +180,89 @@ mod cell {
     unsafe impl<T: Acyclic> Acyclic for OnceCell<T> {}
 }
 
+#[cfg(feature = "im-rc")]
+mod im_collections {
+    use super::*;
+    use im_rc::{HashMap, HashSet, OrdMap, OrdSet, Vector};
+    impl<T: Trace + Clone> Trace for Vector<T> {
+        fn trace(&self, tracer: &mut Tracer) {
+            let _ = tracer;
+            for v in self.iter() {
+                v.trace(tracer);
+            }
+        }
+
+        fn is_type_tracked() -> bool
+        where
+            Self: Sized,
+        {
+            T::is_type_tracked()
+        }
+    }
+    impl<T: Trace + Clone, H: 'static> Trace for HashSet<T, H> {
+        fn trace(&self, tracer: &mut Tracer) {
+            let _ = tracer;
+            for v in self.iter() {
+                v.trace(tracer);
+            }
+        }
+
+        fn is_type_tracked() -> bool
+        where
+            Self: Sized,
+        {
+            T::is_type_tracked()
+        }
+    }
+    impl<T: Trace + Clone + Ord> Trace for OrdSet<T> {
+        fn trace(&self, tracer: &mut Tracer) {
+            let _ = tracer;
+            for v in self.iter() {
+                v.trace(tracer);
+            }
+        }
+
+        fn is_type_tracked() -> bool
+        where
+            Self: Sized,
+        {
+            T::is_type_tracked()
+        }
+    }
+    impl<K: Trace + Clone, V: Trace + Clone> Trace for HashMap<K, V> {
+        fn trace(&self, tracer: &mut Tracer) {
+            let _ = tracer;
+            for (k, v) in self.iter() {
+                k.trace(tracer);
+                v.trace(tracer);
+            }
+        }
+
+        fn is_type_tracked() -> bool
+        where
+            Self: Sized,
+        {
+            K::is_type_tracked() || V::is_type_tracked()
+        }
+    }
+    impl<K: Trace + Clone + Ord, V: Trace + Clone> Trace for OrdMap<K, V> {
+        fn trace(&self, tracer: &mut Tracer) {
+            let _ = tracer;
+            for (k, v) in self.iter() {
+                k.trace(tracer);
+                v.trace(tracer);
+            }
+        }
+
+        fn is_type_tracked() -> bool
+        where
+            Self: Sized,
+        {
+            K::is_type_tracked() || V::is_type_tracked()
+        }
+    }
+}
+
 mod collections {
     use super::*;
     use std::collections::{BTreeMap, HashMap, HashSet, LinkedList, VecDeque};
