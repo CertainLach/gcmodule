@@ -229,7 +229,7 @@ mod im_collections {
             T::is_type_tracked()
         }
     }
-    impl<K: Trace + Clone, V: Trace + Clone> Trace for HashMap<K, V> {
+    impl<K: Trace + Clone, V: Trace + Clone, H: 'static> Trace for HashMap<K, V, H> {
         fn trace(&self, tracer: &mut Tracer) {
             let _ = tracer;
             for (k, v) in self.iter() {
