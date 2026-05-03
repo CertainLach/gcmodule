@@ -270,13 +270,26 @@ macro_rules! cc_dyn {
     };
 }
 
+// is_unique makes no sense for multi-threaded
+impl<T: ?Sized> Cc<T> {
+    /// Returns `true` if and only if this `Cc` is the only strong reference
+    /// to the allocation and no weak references exist.
+    ///
+    /// When true, in-place mutation through interior cells is safe: no other
+    /// `Cc` clone can observe it, and no `Weak` can be upgraded to one.
+    #[inline]
+    pub fn is_unique(&self) -> bool {
+        self.strong_count() == 1 && self.weak_count() == 0
+    }
+}
+
 impl<T: Trace + Clone> Cc<T> {
     /// Update the value `T` in a copy-on-write way.
     ///
     /// If the ref count is 1, the value is updated in-place.
     /// Otherwise a new `Cc<T>` will be created.
     pub fn update_with(&mut self, mut update_func: impl FnMut(&mut T)) {
-        let need_clone = self.ref_count() > 1;
+        let need_clone = !self.is_unique();
         if need_clone {
             let mut value = <Cc<T>>::deref(self).clone();
             update_func(&mut value);
