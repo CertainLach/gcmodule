@@ -194,7 +194,7 @@ pub trait Linked {
 }
 
 /// Internal metadata used by the cycle collector.
-#[repr(C)]
+#[repr(C, align(8))]
 pub struct GcHeader {
     pub(crate) next: Cell<*const GcHeader>,
     pub(crate) prev: Cell<*const GcHeader>,
