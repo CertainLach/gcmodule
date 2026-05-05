@@ -17,3 +17,6 @@ proc-macro2 = "1.0"
 
 [dev-dependencies]
 jrsonnet-gcmodule = { path = ".." }
+
+[lints]
+workspace = true

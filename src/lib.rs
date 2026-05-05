@@ -289,9 +289,9 @@ pub use jrsonnet_gcmodule_derive::{Acyclic, Trace};
 #[cfg(not(test))]
 mod debug {
     #[cfg(any(feature = "debug", feature = "testutil", test))]
-    thread_local!(pub(crate) static NEXT_DEBUG_NAME: std::cell::Cell<usize> = Default::default());
+    thread_local!(pub(crate) static NEXT_DEBUG_NAME: std::cell::Cell<usize> = std::cell::Cell::default());
     #[cfg(any(feature = "debug", test))]
-    thread_local!(pub(crate) static GC_DROPPING: std::cell::Cell<bool> = Cell::new(false));
+    thread_local!(pub(crate) static GC_DROPPING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) });
     pub(crate) fn log<S1: ToString, S2: ToString>(func: impl Fn() -> (S1, S2)) {
         if cfg!(feature = "debug") {
             let (name, message) = func();
@@ -327,6 +327,7 @@ pub mod interop {
     ///
     /// Current thread gc becomes broken after this call, you should not use gc after this
     /// call, and before `reenter_thread` call.
+    #[must_use]
     pub unsafe fn exit_thread() -> *mut GcState {
         let object_list: UnerasedState = THREAD_OBJECT_SPACE
             .with(|space| mem::replace(&mut *space.list.borrow_mut(), new_gc_list()));

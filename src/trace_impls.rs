@@ -94,7 +94,7 @@ mod tuples {
 }
 
 mod borrow {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
     use std::borrow::Cow;
 
     impl<T: ToOwned + ?Sized> Trace for Cow<'static, T>
@@ -103,7 +103,7 @@ mod borrow {
     {
         fn trace(&self, tracer: &mut Tracer) {
             if let Cow::Owned(v) = self {
-                v.trace(tracer)
+                v.trace(tracer);
             }
         }
 
@@ -116,7 +116,7 @@ mod borrow {
 }
 
 mod boxed {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
     impl<T: Trace> Trace for Box<T> {
         fn trace(&self, tracer: &mut Tracer) {
             self.as_ref().trace(tracer);
@@ -131,7 +131,7 @@ mod boxed {
 }
 
 mod cell {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
     use std::cell::{Cell, OnceCell, RefCell};
 
     impl<T: Copy + Trace> Trace for Cell<T> {
@@ -168,7 +168,7 @@ mod cell {
     impl<T: Trace> Trace for OnceCell<T> {
         fn trace(&self, tracer: &mut Tracer) {
             if let Some(x) = self.get() {
-                x.trace(tracer)
+                x.trace(tracer);
             }
         }
 
@@ -264,7 +264,7 @@ mod im_collections {
 }
 
 mod collections {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
     use std::collections::{BTreeMap, HashMap, HashSet, LinkedList, VecDeque};
     use std::hash::Hash;
 
@@ -344,7 +344,7 @@ mod collections {
 mod rustc_hash {}
 
 mod vec {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
     impl<T: Trace> Trace for Vec<T> {
         fn trace(&self, tracer: &mut Tracer) {
             for t in self {
@@ -439,7 +439,7 @@ mod net {
 }
 
 mod option {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
 
     impl<T: Trace> Trace for Option<T> {
         fn trace(&self, tracer: &mut Tracer) {
@@ -486,7 +486,7 @@ mod rc {
 }
 
 mod result {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
 
     impl<T: Trace, U: Trace> Trace for Result<T, U> {
         fn trace(&self, tracer: &mut Tracer) {
@@ -504,7 +504,7 @@ mod result {
 }
 
 mod sync {
-    use super::*;
+    use super::{Trace, Tracer};
     use std::sync;
 
     // See comment in Mutex for why this is acyclic.
@@ -563,7 +563,7 @@ mod thread {
 }
 
 mod phantom {
-    use super::*;
+    use super::{Acyclic, Trace, Tracer};
     use std::marker::PhantomData;
     impl<T: 'static> Trace for PhantomData<T> {
         fn trace(&self, _tracer: &mut Tracer) {}

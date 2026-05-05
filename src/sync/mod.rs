@@ -80,6 +80,7 @@ impl<T: ?Sized> ThreadedCc<T> {
     /// Immutably borrows the wrapped value.
     ///
     /// The borrow lasts until the returned value exits scope.
+    #[must_use]
     pub fn borrow(&self) -> ThreadedCcRef<'_, T> {
         ThreadedCcRef {
             locked: self.inner().ref_count.locked(),
@@ -89,7 +90,7 @@ impl<T: ?Sized> ThreadedCc<T> {
     }
 }
 
-impl<'a, T: ?Sized> Deref for ThreadedCcRef<'a, T> {
+impl<T: ?Sized> Deref for ThreadedCcRef<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -102,7 +103,7 @@ impl<'a, T: ?Sized> Deref for ThreadedCcRef<'a, T> {
 
 impl<T: Trace> Trace for ThreadedCc<T> {
     fn trace(&self, tracer: &mut Tracer) {
-        self.inner().trace_t(tracer)
+        self.inner().trace_t(tracer);
     }
 
     #[inline]
@@ -113,7 +114,7 @@ impl<T: Trace> Trace for ThreadedCc<T> {
 
 impl Trace for ThreadedCc<dyn Trace> {
     fn trace(&self, tracer: &mut Tracer) {
-        self.inner().trace_t(tracer)
+        self.inner().trace_t(tracer);
     }
 
     #[inline]
@@ -125,7 +126,7 @@ impl Trace for ThreadedCc<dyn Trace> {
 
 impl Trace for ThreadedCc<dyn Trace + Send> {
     fn trace(&self, tracer: &mut Tracer) {
-        self.inner().trace_t(tracer)
+        self.inner().trace_t(tracer);
     }
 
     #[inline]
@@ -137,7 +138,7 @@ impl Trace for ThreadedCc<dyn Trace + Send> {
 
 impl Trace for ThreadedCc<dyn Trace + Send + Sync> {
     fn trace(&self, tracer: &mut Tracer) {
-        self.inner().trace_t(tracer)
+        self.inner().trace_t(tracer);
     }
 
     #[inline]

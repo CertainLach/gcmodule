@@ -97,7 +97,7 @@ fn test_simple_non_trait_cycles() {
         }
     }
     {
-        let t1: T = Default::default();
+        let t1 = T::default();
         debug::NEXT_DEBUG_NAME.with(|n| n.set(1));
         let t2: T = T(Cc::new(RefCell::new(Some(Box::new(t1.clone())))));
         (*t1.0.borrow_mut()) = Some(Box::new(t2.clone()));
@@ -131,8 +131,8 @@ fn test_weakref_without_cycles() {
     });
     assert_eq!(
         log,
-        r#"
-0: new (CcBox), new-weak (1), new-strong (2), clone-weak (2), drop (1), drop (0), drop (T), clone-weak (3), drop-weak (2), drop-weak (1), drop-weak (0), drop (CcBox)"#
+        r"
+0: new (CcBox), new-weak (1), new-strong (2), clone-weak (2), drop (1), drop (0), drop (T), clone-weak (3), drop-weak (2), drop-weak (1), drop-weak (0), drop (CcBox)"
     );
 }
 
@@ -170,7 +170,7 @@ fn test_weakref_with_cycles() {
     });
     assert_eq!(
         log,
-        r#"
+        r"
 1: new (CcBoxWithGcHeader)
 2: new (CcBoxWithGcHeader), clone (2)
 1: clone (2), new-weak (1), clone-weak (2)
@@ -191,7 +191,7 @@ collect: 2 unreachable objects
 2: drop (1), drop (0)
 1: drop (0)
 2: clone-weak (2), drop-weak (1), drop-weak (0), drop (CcBoxWithGcHeader)
-1: drop-weak (1), drop-weak (0), drop (CcBoxWithGcHeader)"#
+1: drop-weak (1), drop-weak (0), drop (CcBoxWithGcHeader)"
     );
 }
 
@@ -200,14 +200,14 @@ fn test_drop_by_ref_count() {
     let log = debug::capture_log(|| test_small_graph(3, &[], 0, 0));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader)
 1: new (CcBoxWithGcHeader)
 2: new (CcBoxWithGcHeader)
 0: drop (0), drop (T), drop (CcBoxWithGcHeader)
 1: drop (0), drop (T), drop (CcBoxWithGcHeader)
 2: drop (0), drop (T), drop (CcBoxWithGcHeader)
-collect: collect_thread_cycles, 0 unreachable objects"#
+collect: collect_thread_cycles, 0 unreachable objects"
     );
 }
 
@@ -216,12 +216,12 @@ fn test_self_referential() {
     let log = debug::capture_log(|| test_small_graph(1, &[0x00, 0x00, 0x00], 0, 0));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader), clone (2), clone (3), clone (4), drop (3)
 collect: collect_thread_cycles
 0: gc_traverse, trace, trace, trace
 collect: 1 unreachable objects
-0: gc_clone (4), drop (T), drop (3), drop (2), drop (1), drop (0), drop (CcBoxWithGcHeader)"#
+0: gc_clone (4), drop (T), drop (3), drop (2), drop (1), drop (0), drop (CcBoxWithGcHeader)"
     );
 }
 
@@ -231,7 +231,7 @@ fn test_3_object_cycle() {
     let log = debug::capture_log(|| test_small_graph(3, &[0x01, 0x12, 0x20], 0, 0));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader)
 1: new (CcBoxWithGcHeader)
 2: new (CcBoxWithGcHeader)
@@ -255,7 +255,7 @@ collect: 3 unreachable objects
 0: drop (1), drop (T)
 2: drop (1), drop (0), drop (CcBoxWithGcHeader)
 1: drop (0), drop (CcBoxWithGcHeader)
-0: drop (0), drop (CcBoxWithGcHeader)"#
+0: drop (0), drop (CcBoxWithGcHeader)"
     );
 }
 
@@ -264,7 +264,7 @@ fn test_2_object_cycle_with_another_incoming_reference() {
     let log = debug::capture_log(|| test_small_graph(3, &[0x02, 0x20, 0x10], 0, 0));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader)
 1: new (CcBoxWithGcHeader)
 2: new (CcBoxWithGcHeader)
@@ -293,7 +293,7 @@ collect: 3 unreachable objects
 1: drop (1)
 2: drop (0), drop (CcBoxWithGcHeader)
 1: drop (0), drop (CcBoxWithGcHeader)
-0: drop (0), drop (CcBoxWithGcHeader)"#
+0: drop (0), drop (CcBoxWithGcHeader)"
     );
 }
 
@@ -302,7 +302,7 @@ fn test_2_object_cycle_with_another_outgoing_reference() {
     let log = debug::capture_log(|| test_small_graph(3, &[0x02, 0x20, 0x01], 0, 0));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader)
 1: new (CcBoxWithGcHeader)
 2: new (CcBoxWithGcHeader)
@@ -323,7 +323,7 @@ collect: 2 unreachable objects
 2: drop (T)
 0: drop (1), drop (T)
 2: drop (1), drop (0), drop (CcBoxWithGcHeader)
-0: drop (0), drop (CcBoxWithGcHeader)"#
+0: drop (0), drop (CcBoxWithGcHeader)"
     );
 }
 
@@ -333,7 +333,7 @@ fn test_simple_mixed_graph() {
     let log = debug::capture_log(|| test_small_graph(2, &[0, 0x00], 0b10, 0));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader)
 1: new (CcBox)
 0: clone (2), clone (3), drop (2)
@@ -341,13 +341,13 @@ fn test_simple_mixed_graph() {
 collect: collect_thread_cycles
 0: gc_traverse, trace, trace
 collect: 1 unreachable objects
-0: gc_clone (3), drop (T), drop (2), drop (1), drop (0), drop (CcBoxWithGcHeader)"#
+0: gc_clone (3), drop (T), drop (2), drop (1), drop (0), drop (CcBoxWithGcHeader)"
     );
 
     let log = debug::capture_log(|| test_small_graph(2, &[0, 0x10], 0b10, 0));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader)
 1: new (CcBox)
 0: clone (2)
@@ -359,8 +359,8 @@ collect: collect_thread_cycles
 collect: 1 unreachable objects
 0: gc_clone (2), drop (T), drop (1)
 1: drop (0), drop (T), drop (CcBox)
-0: drop (0), drop (CcBoxWithGcHeader)"#
-    )
+0: drop (0), drop (CcBoxWithGcHeader)"
+    );
 }
 
 #[test]
@@ -370,7 +370,7 @@ fn test_collect_multi_times() {
     let log = debug::capture_log(|| test_small_graph(2, &edges, 0, 3));
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader)
 1: new (CcBoxWithGcHeader)
 0: clone (2)
@@ -390,7 +390,7 @@ collect: 0 unreachable objects
 1: drop (0), drop (T)
 0: drop (0), drop (T), drop (CcBoxWithGcHeader)
 1: drop (CcBoxWithGcHeader)
-collect: collect_thread_cycles, 0 unreachable objects"#
+collect: collect_thread_cycles, 0 unreachable objects"
     );
 }
 
@@ -401,7 +401,7 @@ fn test_update_with() {
     let log = debug::capture_log(|| {
         let mut cc = Cc::new(30);
         cc.update_with(|i| *i += 1);
-        assert_eq!(cc.deref(), &31);
+        assert_eq!(&*cc, &31);
     });
     assert_eq!(log, "\n0: new (CcBox), drop (0), drop (T), drop (CcBox)");
 
@@ -412,17 +412,17 @@ fn test_update_with() {
         let mut cc2 = cc1.clone();
         debug::NEXT_DEBUG_NAME.with(|n| n.set(3));
         cc2.update_with(|i| *i += 1);
-        assert_eq!(cc1.deref(), &30);
-        assert_eq!(cc2.deref(), &31);
+        assert_eq!(&*cc1, &30);
+        assert_eq!(&*cc2, &31);
     });
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBox), clone (2)
 3: new (CcBox)
 0: drop (1)
 3: drop (0), drop (T), drop (CcBox)
-0: drop (0), drop (T), drop (CcBox)"#
+0: drop (0), drop (T), drop (CcBox)"
     );
 
     // Update on a tracked, non-unique value.
@@ -445,12 +445,12 @@ fn test_update_with() {
     });
     assert_eq!(
         log,
-        r#"
+        r"
 0: new (CcBoxWithGcHeader), clone (2)
 3: new (CcBoxWithGcHeader)
 0: drop (1)
 3: drop (0), drop (T), drop (CcBoxWithGcHeader)
-0: drop (0), drop (T), drop (CcBoxWithGcHeader)"#
+0: drop (0), drop (T), drop (CcBoxWithGcHeader)"
     );
 }
 
@@ -488,7 +488,7 @@ fn capture_panic_message<R, F: Fn() -> R + panic::UnwindSafe>(func: F) -> String
 
 #[test]
 fn test_trace_impl_double_visits() {
-    let v: Cc<DuplicatedVisits> = Default::default();
+    let v: Cc<DuplicatedVisits> = Cc::default();
     v.extra_times.set(1);
     *(v.a.borrow_mut()) = Some(TraceBox(Box::new(v.clone())));
 
@@ -501,7 +501,7 @@ fn test_trace_impl_double_visits() {
     #[cfg(debug_assertions)]
     {
         let message = capture_panic_message(move || {
-            let _ = v.deref();
+            let _ = &*v;
         });
         assert!(message.contains("bug: accessing a dropped CcBox detected"));
     }
@@ -512,7 +512,7 @@ fn test_trace_impl_double_visits() {
 fn leak() {
     let a = Cc::new(1);
     let b = Cc::new((a.clone(), 1));
-    with_thread_object_space(|s| s.leak());
+    with_thread_object_space(super::collect::ObjectSpace::leak);
     assert_eq!(crate::count_thread_tracked(), 0);
     assert_eq!(*a, 1);
     let _ = b;
@@ -582,7 +582,7 @@ fn weak_double_free() {
     let w1 = v.clone().downgrade();
     let w2 = v.clone().downgrade();
     drop(v);
-    collect_thread_cycles();
+    let _ = collect_thread_cycles();
     drop(w1);
     drop(w2);
 }

@@ -10,7 +10,6 @@ use std::mem;
 use std::mem::ManuallyDrop;
 use std::mem::offset_of;
 use std::ops::Deref;
-use std::ops::DerefMut;
 use std::panic::UnwindSafe;
 use std::ptr::NonNull;
 
@@ -117,7 +116,7 @@ pub trait CcDyn {
     }
 }
 
-/// Type-erased gc_clone result.
+/// Type-erased `gc_clone` result.
 ///
 /// This is a private type.
 pub trait GcClone {
@@ -194,7 +193,7 @@ impl<T: Trace, O: AbstractObjectSpace> RawCc<T, O> {
                 mem::size_of::<RawCcBoxWithGcHeader<T, O>>()
             );
             let leaked = Box::leak(boxed);
-            space.insert(&leaked.header, &leaked.cc_box);
+            space.insert(&raw const leaked.header, &leaked.cc_box);
             let ptr: *mut RawCcBox<T, O> = &raw mut leaked.cc_box;
             ptr
         } else {
@@ -213,6 +212,7 @@ impl<T: Trace, O: AbstractObjectSpace> RawCc<T, O> {
     }
 
     /// Convert to `RawCc<dyn Trace>`.
+    #[must_use]
     pub fn into_dyn(self) -> RawCc<dyn Trace, O> {
         #[cfg(feature = "nightly")]
         {
@@ -278,6 +278,7 @@ impl<T: ?Sized> Cc<T> {
     /// When true, in-place mutation through interior cells is safe: no other
     /// `Cc` clone can observe it, and no `Weak` can be upgraded to one.
     #[inline]
+    #[must_use]
     pub fn is_unique(&self) -> bool {
         self.strong_count() == 1 && self.weak_count() == 0
     }
@@ -296,7 +297,7 @@ impl<T: Trace + Clone> Cc<T> {
             *self = Cc::new(value);
         } else {
             let value_ptr: *mut ManuallyDrop<T> = self.inner().value.get();
-            let value_mut: &mut T = unsafe { &mut *value_ptr }.deref_mut();
+            let value_mut: &mut T = &mut **unsafe { &mut *value_ptr };
             update_func(value_mut);
         }
     }
@@ -305,7 +306,7 @@ impl<T: Trace + Clone> Cc<T> {
 impl<T: ?Sized, O: AbstractObjectSpace> RawCcBox<T, O> {
     #[inline]
     fn header_ptr(&self) -> *const () {
-        self.header() as *const _ as _
+        self.header().cast()
     }
 
     #[inline]
@@ -429,6 +430,7 @@ impl<T: std::fmt::Debug + ?Sized> OptionalDebug for T {
 
 impl<T: ?Sized, O: AbstractObjectSpace> RawCc<T, O> {
     /// Obtains a "weak reference", a non-owning pointer.
+    #[must_use]
     pub fn downgrade(&self) -> RawWeak<T, O> {
         let inner = self.inner();
         inner.ref_count.inc_weak();
@@ -443,12 +445,14 @@ impl<T: ?Sized, O: AbstractObjectSpace> RawCc<T, O> {
 
     /// Gets the reference count not considering weak references.
     #[inline]
+    #[must_use]
     pub fn strong_count(&self) -> usize {
         self.ref_count()
     }
 
     /// Returns `true` if the two `Cc`s point to the same allocation
     #[inline]
+    #[must_use]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         std::ptr::addr_eq(this.0.as_ptr(), other.0.as_ptr())
     }
@@ -458,6 +462,7 @@ impl<T: ?Sized, O: AbstractObjectSpace> RawWeak<T, O> {
     /// Attempts to obtain a "strong reference".
     ///
     /// Returns `None` if the value has already been dropped.
+    #[must_use]
     pub fn upgrade(&self) -> Option<RawCc<T, O>> {
         let inner = self.inner();
         // Make the below operation "atomic".
@@ -478,18 +483,21 @@ impl<T: ?Sized, O: AbstractObjectSpace> RawWeak<T, O> {
 
     /// Gets the reference count not considering weak references.
     #[inline]
+    #[must_use]
     pub fn strong_count(&self) -> usize {
         self.inner().ref_count()
     }
 
     /// Get the weak (non-owning) reference count.
     #[inline]
+    #[must_use]
     pub fn weak_count(&self) -> usize {
         self.inner().weak_count()
     }
 
     /// Returns `true` if the two `Weak`s point to the same allocation
     #[inline]
+    #[must_use]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         std::ptr::addr_eq(this.0.as_ptr(), other.0.as_ptr())
     }
@@ -498,12 +506,14 @@ impl<T: ?Sized, O: AbstractObjectSpace> RawWeak<T, O> {
 impl<T: ?Sized, O: AbstractObjectSpace> RawCc<T, O> {
     #[inline]
     #[doc(hidden)]
+    #[must_use]
     pub fn inner(&self) -> &RawCcBox<T, O> {
         // safety: CcBox lifetime maintained by ref count. Pointer is valid.
         unsafe { self.0.as_ref() }
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub unsafe fn inner_box(this: *const Self) -> *const T {
         let ptr: *const ManuallyDrop<T> = unsafe { (*(*this).0.as_ptr()).value.get() }.cast_const();
         ptr as _
@@ -536,6 +546,7 @@ impl<T: ?Sized, O: AbstractObjectSpace> RawCc<T, O> {
 
     /// Get the weak (non-owning) reference count.
     #[inline]
+    #[must_use]
     pub fn weak_count(&self) -> usize {
         self.inner().weak_count()
     }
@@ -690,7 +701,7 @@ impl<T: Trace + ?Sized, O: AbstractObjectSpace> CcDyn for RawCcBox<T, O> {
             return;
         }
         debug::log(|| (self.debug_name(), "gc_traverse"));
-        T::trace(self.deref(), tracer)
+        T::trace(&**self, tracer);
     }
 
     fn gc_clone(&self) -> Box<dyn GcClone> {
@@ -703,7 +714,7 @@ impl<T: Trace + ?Sized, O: AbstractObjectSpace> CcDyn for RawCcBox<T, O> {
         // to satisfy NonNull (NonNull::new requires &mut). The returned value
         // is still "immutable". &self can also never be nonnull.
         let ptr: NonNull<RawCcBox<T, O>> =
-            unsafe { NonNull::new_unchecked(self as *const _ as *mut _) };
+            unsafe { NonNull::new_unchecked(std::ptr::from_ref(self).cast_mut()) };
         let cc = RawCc::<T, O>(ptr);
         Box::new(cc)
     }
@@ -720,13 +731,13 @@ impl<T: Trace + ?Sized, O: AbstractObjectSpace> GcClone for RawCc<T, O> {
     }
 
     fn gc_drop_t(&self) {
-        self.inner().drop_t()
+        self.inner().drop_t();
     }
 }
 
 impl<T: Trace> Trace for Cc<T> {
     fn trace(&self, tracer: &mut Tracer) {
-        Cc::<T>::trace(self, tracer)
+        Cc::<T>::trace(self, tracer);
     }
 
     #[inline]
@@ -737,7 +748,7 @@ impl<T: Trace> Trace for Cc<T> {
 
 impl Trace for Cc<dyn Trace> {
     fn trace(&self, tracer: &mut Tracer) {
-        Cc::<dyn Trace>::trace(self, tracer)
+        Cc::<dyn Trace>::trace(self, tracer);
     }
 
     #[inline]
@@ -762,10 +773,10 @@ unsafe fn cast_box<T: ?Sized, O: AbstractObjectSpace>(
 
         // ptr can be "thin" (1 pointer) or "fat" (2 pointers).
         // Change the first byte to point to the GcHeader.
-        let pptr: *mut *const RawCcBox<T, O> = &mut ptr;
-        let pptr: *mut *const O::Header = pptr as _;
-        *pptr = (*pptr).offset(-1);
-        let ptr: *mut RawCcBoxWithGcHeader<T, O> = mem::transmute(ptr);
+        let hptr: *mut *const RawCcBox<T, O> = &raw mut ptr;
+        let hptr: *mut *const O::Header = hptr.cast();
+        *hptr = (*hptr).sub(1);
+        let ptr = ptr as *mut RawCcBoxWithGcHeader<T, O>;
         Box::from_raw(ptr)
     }
 }

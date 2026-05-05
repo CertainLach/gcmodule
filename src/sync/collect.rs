@@ -118,7 +118,7 @@ impl Default for ThreadedObjectSpace {
         header.next.set(header);
         ThreadedObjectSpace {
             list: pinned,
-            collector_lock: Default::default(),
+            collector_lock: Arc::default(),
         }
     }
 }
@@ -126,6 +126,7 @@ impl Default for ThreadedObjectSpace {
 impl ThreadedObjectSpace {
     /// Count objects tracked by this
     /// [`ThreadedObjectSpace`](struct.ThreadedObjectSpace.html).
+    #[must_use]
     pub fn count_tracked(&self) -> usize {
         let _linked_list_lock = self.list.linked_list_lock.lock();
         let list: &Header = &self.list;
@@ -137,6 +138,7 @@ impl ThreadedObjectSpace {
     /// Collect cyclic garbage tracked by this
     /// [`ThreadedObjectSpace`](struct.ThreadedObjectSpace.html).
     /// Return the number of objects collected.
+    #[must_use]
     pub fn collect_cycles(&self) -> usize {
         // Wait for complex operations (drop). Block operations (drop, deref).
         let collector_lock = self.collector_lock.write();
@@ -187,18 +189,18 @@ impl Linked for Header {
     }
     #[inline]
     fn set_prev(&self, other: *const Self) {
-        self.prev.set(other)
+        self.prev.set(other);
     }
     fn value_ptr(this: *const Self) -> *const dyn CcDyn {
         // safety: To build trait object from self and vtable pointer.
         // Test by test_gc_header_value_consistency().
         unsafe {
-            let fat_ptr: (*const (), *const ()) = (this.offset(1) as _, (*this).ccdyn_vptr.get());
+            let fat_ptr: (*const (), *const ()) = (this.add(1).cast(), (*this).ccdyn_vptr.get());
             mem::transmute(fat_ptr)
         }
     }
     #[inline]
     fn value(&self) -> &dyn CcDyn {
-        unsafe { mem::transmute(Self::value_ptr(self)) }
+        unsafe { &*Self::value_ptr(self) }
     }
 }

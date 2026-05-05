@@ -7,9 +7,9 @@ use std::cell::RefCell;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
-thread_local!(static NEXT_TRACKED_OVERRIDE: Cell<bool> = Cell::new(true));
+thread_local!(static NEXT_TRACKED_OVERRIDE: Cell<bool> = const { Cell::new(true) });
 
-/// Track count of drop(). Store result in AtomicUsize.
+/// Track count of `drop()`. Store result in `AtomicUsize`.
 /// The bool value controls whether this type is tracked.
 pub struct DropCounter<T>(T, Arc<AtomicUsize>);
 impl<T: Trace> Trace for DropCounter<T> {
@@ -17,7 +17,7 @@ impl<T: Trace> Trace for DropCounter<T> {
         self.0.trace(tracer);
     }
     fn is_type_tracked() -> bool {
-        NEXT_TRACKED_OVERRIDE.with(|a| a.get())
+        NEXT_TRACKED_OVERRIDE.with(std::cell::Cell::get)
     }
 }
 impl<T> Drop for DropCounter<T> {
@@ -26,10 +26,11 @@ impl<T> Drop for DropCounter<T> {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn create_objects(
     n: usize,
     atomic_bits: u16,
-    drop_count: Arc<AtomicUsize>,
+    drop_count: &Arc<AtomicUsize>,
 ) -> Vec<Cc<DropCounter<RefCell<Vec<TraceBox<dyn Trace>>>>>> {
     assert!(n <= 16);
     let is_tracked = |n| -> bool { (atomic_bits >> n) & 1 == 0 };
@@ -49,13 +50,14 @@ pub(crate) fn create_objects(
 ///
 /// `collect_bits` is a bit mask. If the i-th bit is set, then try to collect
 /// after dropping the i-th value.
+#[allow(clippy::missing_panics_doc)]
 pub fn test_small_graph(n: usize, edges: &[u8], atomic_bits: u16, collect_bits: u16) {
     assert!(n <= 16);
     let is_tracked = |n| -> bool { (atomic_bits >> n) & 1 == 0 };
     let drop_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let mut edge_descs: Vec<Vec<usize>> = vec![Vec::new(); n];
     {
-        let values = create_objects(n, atomic_bits, drop_count.clone());
+        let values = create_objects(n, atomic_bits, &drop_count);
         for &edge in edges {
             let from_index = ((edge as usize) >> 4) % n;
             let to_index = ((edge as usize) & 15) % n;
@@ -79,7 +81,7 @@ pub fn test_small_graph(n: usize, edges: &[u8], atomic_bits: u16, collect_bits: 
         }
         for (i, _value) in values.into_iter().enumerate() {
             if ((collect_bits >> i) & 1) != 0 {
-                collect::collect_thread_cycles();
+                let _ = collect::collect_thread_cycles();
             }
         }
     }
@@ -88,19 +90,12 @@ pub fn test_small_graph(n: usize, edges: &[u8], atomic_bits: u16, collect_bits: 
     let new_dropped = drop_count.load(SeqCst);
     assert!(
         collected + old_dropped <= new_dropped,
-        "collected ({}) + old_dropped ({}) > new_dropped ({}) edges: {:?}",
-        collected,
-        old_dropped,
-        new_dropped,
-        edge_descs,
+        "collected ({collected}) + old_dropped ({old_dropped}) > new_dropped ({new_dropped}) edges: {edge_descs:?}",
     );
     let dropped = drop_count.load(SeqCst);
     assert_eq!(
         drop_count.load(SeqCst),
         n,
-        "dropped ({}) != n ({}) edges: {:?}",
-        dropped,
-        n,
-        edge_descs,
+        "dropped ({dropped}) != n ({n}) edges: {edge_descs:?}",
     );
 }

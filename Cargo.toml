@@ -39,3 +39,9 @@ im-rc = ["dep:im-rc"]
 
 [workspace]
 members = ["gcmodule_derive", "fuzz"]
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+[lints]
+workspace = true

@@ -68,6 +68,7 @@ pub trait Trace: 'static {
     ///
     /// This is an optimization for performance. When in-doubt, return `true`
     /// for correctness.
+    #[must_use]
     fn is_type_tracked() -> bool
     where
         Self: Sized,

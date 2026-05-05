@@ -25,7 +25,7 @@ impl<T: PartialEq + ?Sized> PartialEq for RawCc<T, O> {
 
 impl<T: hash::Hash + ?Sized> hash::Hash for RawCc<T, O> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        (**self).hash(state)
+        (**self).hash(state);
     }
 }
 

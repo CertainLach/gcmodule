@@ -17,6 +17,7 @@ use std::cell::RefCell;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::mem;
+use std::ptr;
 use std::ptr::without_provenance;
 
 /// Provides advanced explicit control about where to store [`Cc`](type.Cc.html)
@@ -115,7 +116,7 @@ impl AbstractObjectSpace for ObjectSpace {
             (*prev).next.set(next);
             (*next).prev.set(prev);
         }
-        header.next.set(std::ptr::null_mut());
+        header.next.set(ptr::null_mut());
     }
 
     #[inline]
@@ -202,7 +203,7 @@ pub struct GcHeader {
     /// Vtable of (`&CcBox<T> as &dyn CcDyn`)
     pub(crate) ccdyn_vptr: Cell<*const ()>,
 
-    /// https://github.com/rust-lang/unsafe-code-guidelines/issues/256#issuecomment-2506767812
+    /// <https://github.com/rust-lang/unsafe-code-guidelines/issues/256#issuecomment-2506767812>
     pub(crate) _marker: UnsafeCell<()>,
 }
 
@@ -217,19 +218,19 @@ impl Linked for GcHeader {
     }
     #[inline]
     fn set_prev(&self, other: *const Self) {
-        self.prev.set(other)
+        self.prev.set(other);
     }
     fn value_ptr(this: *const Self) -> *const dyn CcDyn {
         // safety: To build trait object from self and vtable pointer.
         // Test by test_gc_header_value_consistency().
         unsafe {
-            let fat_ptr: (*const (), *const ()) = (this.offset(1) as _, (*this).ccdyn_vptr.get());
+            let fat_ptr: (*const (), *const ()) = (this.add(1).cast(), (*this).ccdyn_vptr.get());
             mem::transmute(fat_ptr)
         }
     }
     #[inline]
     fn value(&self) -> &dyn CcDyn {
-        unsafe { mem::transmute(Self::value_ptr(self)) }
+        unsafe { &*Self::value_ptr(self) }
     }
 }
 
@@ -237,8 +238,8 @@ impl GcHeader {
     /// Create an empty header.
     pub(crate) fn empty() -> Self {
         Self {
-            next: Cell::new(std::ptr::null()),
-            prev: Cell::new(std::ptr::null()),
+            next: Cell::new(ptr::null()),
+            prev: Cell::new(ptr::null()),
             ccdyn_vptr: Cell::new(CcDummy::ccdyn_vptr()),
             _marker: UnsafeCell::new(()),
         }
@@ -248,16 +249,18 @@ impl GcHeader {
 /// Collect cyclic garbage in the current thread created by
 /// [`Cc::new`](type.Cc.html#method.new).
 /// Return the number of objects collected.
+#[must_use]
 pub fn collect_thread_cycles() -> usize {
     debug::log(|| ("collect", "collect_thread_cycles"));
-    THREAD_OBJECT_SPACE.with(|list| list.collect_cycles())
+    THREAD_OBJECT_SPACE.with(ObjectSpace::collect_cycles)
 }
 
 /// Count number of objects tracked by the collector in the current thread
 /// created by [`Cc::new`](type.Cc.html#method.new).
 /// Return the number of objects tracked.
+#[must_use]
 pub fn count_thread_tracked() -> usize {
-    THREAD_OBJECT_SPACE.with(|list| list.count_tracked())
+    THREAD_OBJECT_SPACE.with(ObjectSpace::count_tracked)
 }
 
 thread_local!(pub(crate) static THREAD_OBJECT_SPACE: ObjectSpace = ObjectSpace::default());
@@ -281,7 +284,7 @@ impl Drop for OwnedGcHeader {
     }
 }
 
-/// Create an empty linked list with a dummy GcHeader.
+/// Create an empty linked list with a dummy `GcHeader`.
 pub(crate) fn new_gc_list() -> OwnedGcHeader {
     let header = Box::into_raw(Box::new(GcHeader::empty()));
     unsafe { (*header).prev.set(header) };
@@ -301,7 +304,7 @@ pub(crate) fn collect_list<L: Linked, K>(list: &L, lock: K) -> usize {
 pub(crate) fn visit_list<'a, L: Linked>(list: &'a L, mut func: impl FnMut(&'a L)) {
     // Skip the first dummy entry.
     let mut ptr = list.next();
-    while ptr as *const _ != list as *const _ {
+    while !ptr::eq(ptr, list) {
         // The linked list is maintained so the pointer is valid.
         let header: &L = unsafe { &*ptr };
         ptr = header.next();
@@ -320,7 +323,7 @@ fn unmask_ptr<T>(ptr: *const T) -> *const T {
 }
 
 /// Temporarily use `GcHeader.prev` as `gc_ref_count`.
-/// Idea comes from https://bugs.python.org/issue33597.
+/// Idea comes from <https://bugs.python.org/issue33597>.
 fn update_refs<L: Linked>(list: &L) {
     visit_list(list, |header| {
         let ref_count = header.value().gc_ref_count();
@@ -349,7 +352,7 @@ fn update_refs<L: Linked>(list: &L) {
 fn subtract_refs<L: Linked>(list: &L) {
     let mut tracer = |header: *const ()| {
         // safety: The type is known to be GcHeader.
-        let header = unsafe { &*(header as *const L) };
+        let header = unsafe { &*header.cast::<L>() };
         if is_collecting(header) {
             debug_assert!(
                 !is_unreachable(header),
@@ -371,7 +374,7 @@ fn subtract_refs<L: Linked>(list: &L) {
 fn mark_reachable<L: Linked>(list: &L) {
     fn revive<L: Linked>(header: *const ()) {
         // safety: The type is known to be GcHeader.
-        let header = unsafe { &*(header as *const L) };
+        let header = unsafe { &*header.cast::<L>() };
         // hasn't visited?
         if is_collecting(header) {
             unset_collecting(header);
@@ -384,7 +387,7 @@ fn mark_reachable<L: Linked>(list: &L) {
     visit_list(list, |header| {
         if is_collecting(header) && !is_unreachable(header) {
             unset_collecting(header);
-            header.value().gc_traverse(&mut revive::<L>)
+            header.value().gc_traverse(&mut revive::<L>);
         }
     });
 }
@@ -405,7 +408,7 @@ fn release_unreachable<L: Linked, K>(list: &L, lock: K) -> usize {
         }
     });
 
-    debug::log(|| ("collect", format!("{} unreachable objects", count)));
+    debug::log(|| ("collect", format!("{count} unreachable objects")));
 
     // Build a list of what to drop. The collecting steps change the linked list
     // so `visit_list` cannot be used.
@@ -439,13 +442,13 @@ fn release_unreachable<L: Linked, K>(list: &L, lock: K) -> usize {
     // Drop `T` without releasing memory of `CcBox<T>`. This might trigger some
     // recursive drops of other `Cc<T>`. `CcBox<T>` need to stay alive so
     // `Cc<T>::drop` can read the ref count metadata.
-    for value in to_drop.iter() {
+    for value in &to_drop {
         value.gc_drop_t();
     }
 
     // At this point the only references to the `CcBox<T>`s are inside the
     // `to_drop` list. Dropping `to_drop` would release the memory.
-    for value in to_drop.iter() {
+    for value in &to_drop {
         let ref_count = value.gc_ref_count();
         assert_eq!(
             ref_count, 1,
@@ -505,14 +508,14 @@ fn unset_collecting<L: Linked>(header: &L) {
 fn edit_gc_ref_count<L: Linked>(header: &L, delta: isize) {
     let prev = header.prev() as isize;
     let new_prev = prev + (1 << PREV_SHIFT) * delta;
-    header.set_prev(without_provenance(new_prev as usize));
+    header.set_prev(without_provenance(new_prev.cast_unsigned()));
 }
 
 #[allow(unused_variables)]
 fn debug_name<L: Linked>(header: &L) -> String {
     #[cfg(feature = "debug")]
     {
-        return header.value().gc_debug_name();
+        header.value().gc_debug_name()
     }
 
     #[cfg(not(feature = "debug"))]

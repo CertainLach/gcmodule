@@ -4,10 +4,10 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-thread_local!(pub(crate) static LOG: RefCell<String> = Default::default());
-thread_local!(pub(crate) static LAST_NAME: RefCell<String> = Default::default());
-thread_local!(pub(crate) static ENABLED: Cell<bool> = Default::default());
-thread_local!(pub(crate) static NEXT_DEBUG_NAME: Cell<usize> = Default::default());
+thread_local!(pub(crate) static LOG: RefCell<String> = RefCell::default());
+thread_local!(pub(crate) static LAST_NAME: RefCell<String> = RefCell::default());
+thread_local!(pub(crate) static ENABLED: Cell<bool> = Cell::default());
+thread_local!(pub(crate) static NEXT_DEBUG_NAME: Cell<usize> = Cell::default());
 thread_local!(pub(crate) static VERBOSE: bool = std::env::var("VERBOSE").is_ok());
 
 /// Enable debug log for the given scope. Return the debug log.
@@ -25,7 +25,7 @@ pub(crate) fn capture_log(mut func: impl FnMut()) -> String {
 }
 
 pub(crate) fn log<S1: ToString, S2: ToString>(func: impl Fn() -> (S1, S2)) {
-    let enabled = ENABLED.with(|e| e.get());
+    let enabled = ENABLED.with(std::cell::Cell::get);
     if enabled {
         LOG.with(|log| {
             let (name, message) = func();
@@ -38,18 +38,18 @@ pub(crate) fn log<S1: ToString, S2: ToString>(func: impl Fn() -> (S1, S2)) {
                     log.push_str(", ");
                     log.push_str(&message);
                 } else {
-                    log.push_str("\n");
+                    log.push('\n');
                     log.push_str(&name);
                     log.push_str(": ");
                     log.push_str(&message);
                     *(last_name.borrow_mut().deref_mut()) = name;
                 }
             });
-        })
+        });
     } else if VERBOSE.with(|verbose| *verbose) {
         let (name, message) = func();
         let t = std::thread::current().id();
         let name = format!("{:?}-{}", t, name.to_string());
-        eprintln!("debug::log {} {}", name.to_string(), message.to_string());
+        eprintln!("debug::log {} {}", name.clone(), message.to_string());
     }
 }

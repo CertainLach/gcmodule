@@ -40,7 +40,7 @@ fn test_cross_thread_cycle(n: usize) {
         })
     };
 
-    let threads: Vec<_> = (0..n).map(|i| spawn_thread(i)).collect();
+    let threads: Vec<_> = (0..n).map(spawn_thread).collect();
     for thread in threads {
         thread.join().unwrap();
     }
@@ -104,16 +104,16 @@ fn test_racy_threads(
                             }
                         }
                         if (create_cycles_bits >> i) & 1 == 1 {
-                            for j in 0..thread_count {
+                            for (j, t) in tx_list.iter().enumerate().take(thread_count) {
                                 if j % (i + 1) == 0 {
-                                    let _ = tx_list[j].send(TraceBox(Box::new(acc.clone())));
+                                    let _ = t.send(TraceBox(Box::new(acc.clone())));
                                 }
                             }
                         }
                     }
 
                     if (collect_cycles_bits >> i) & 1 == 1 {
-                        space.collect_cycles();
+                        let _ = space.collect_cycles();
                     }
                 }
             })
@@ -124,7 +124,7 @@ fn test_racy_threads(
         t.join().unwrap();
     }
 
-    space.collect_cycles();
+    let _ = space.collect_cycles();
     assert_eq!(space.count_tracked(), 0);
 }
 
@@ -142,11 +142,11 @@ fn test_racy_threads_drops() {
 #[test]
 #[cfg_attr(miri, ignore)]
 fn test_racy_threads_collects() {
-    test_racy_threads(32, 20, 0xffffffff, 0xffffffff);
+    test_racy_threads(32, 20, 0xffff_ffff, 0xffff_ffff);
 }
 
 #[test]
 #[cfg_attr(miri, ignore)]
 fn test_racy_threads_mixed_collects() {
-    test_racy_threads(8, 100, 0b11110000, 0b10101010);
+    test_racy_threads(8, 100, 0b1111_0000, 0b1010_1010);
 }
