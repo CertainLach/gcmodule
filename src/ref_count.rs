@@ -17,22 +17,9 @@ pub trait RefCount: 'static {
     fn ref_count(&self) -> usize;
     fn set_dropped(&self) -> bool;
 
-    // Ideally this can be "type Locked<'a> = ..." so there is no need to
-    // duplicate the function to make parking_lot optional. However it's not in
-    // stable Rust yet. See https://github.com/rust-lang/rust/issues/44265.
-    #[cfg(not(feature = "sync"))]
-    #[inline]
-    fn locked(&self) -> () {
-        ()
-    }
+    type Locked<'a>;
 
-    #[cfg(feature = "sync")]
-    #[inline]
-    fn locked(
-        &self,
-    ) -> Option<parking_lot::lock_api::RwLockReadGuard<'_, parking_lot::RawRwLock, ()>> {
-        None
-    }
+    fn locked(&self) -> Self::Locked<'_>;
 
     // Weakref support.
     fn inc_weak(&self) -> usize;
@@ -51,6 +38,10 @@ impl SingleThreadRefCount {
 }
 
 impl RefCount for SingleThreadRefCount {
+    type Locked<'a> = ();
+
+    fn locked(&self) {}
+
     #[inline]
     fn is_tracked(&self) -> bool {
         Cell::get(&self.0) & REF_COUNT_MASK_TRACKED != 0

@@ -50,39 +50,6 @@
 //! assert_eq!(jrsonnet_gcmodule::collect_thread_cycles(), 2);  // This will drop a and b.
 //! assert_eq!(jrsonnet_gcmodule::count_thread_tracked(), 0);   // no values are tracked.
 //! ```
-#![cfg_attr(
-    feature = "sync",
-    doc = r##"
-
-## Multi-thread support
-
-The main type [`Cc`](type.cc.html) works fine in a single-thread environment.
-
-There are also [`ThreadedObjectSpace`](struct.ThreadedObjectSpace.html)
-and [`ThreadedCc`](type.ThreadedCc.html) for multi-thread usecases. Beware
-they take more memory, are slower, and a bit harder to use.
-
-```
-use jrsonnet_gcmodule::{ThreadedObjectSpace, ThreadedCc, Trace, TraceBox};
-use std::sync::Mutex;
-
-type List = ThreadedCc<Mutex<Vec<TraceBox<dyn Trace + Send + Sync>>>>;
-let space = ThreadedObjectSpace::default();
-{
-    let list1: List = space.create(Mutex::new(Default::default()));
-    let list2: List = space.create(Mutex::new(Default::default()));
-    let thread = std::thread::spawn(move || {
-        list1.borrow().lock().unwrap().push(TraceBox(Box::new(list2.clone())));
-        list2.borrow().lock().unwrap().push(TraceBox(Box::new(list1.clone())));
-    });
-    thread.join().unwrap();
-}
-assert_eq!(space.count_tracked(), 2);
-assert_eq!(space.collect_cycles(), 2);
-assert_eq!(space.count_tracked(), 0);
-```
-"##
-)]
 //!
 //! ## Defining new types
 //!

@@ -1,7 +1,5 @@
 use crate::ref_count::{REF_COUNT_MASK_DROPPED, REF_COUNT_MASK_TRACKED, REF_COUNT_SHIFT, RefCount};
-use parking_lot::RawRwLock;
 use parking_lot::RwLock;
-use parking_lot::lock_api::RwLockReadGuard;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed};
@@ -26,6 +24,8 @@ impl ThreadedRefCount {
 }
 
 impl RefCount for ThreadedRefCount {
+    type Locked<'a> = parking_lot::lock_api::RwLockReadGuard<'a, parking_lot::RawRwLock, ()>;
+
     #[inline]
     fn is_tracked(&self) -> bool {
         self.ref_count.load(Relaxed) & REF_COUNT_MASK_TRACKED != 0
@@ -58,8 +58,8 @@ impl RefCount for ThreadedRefCount {
     }
 
     #[inline]
-    fn locked(&self) -> Option<RwLockReadGuard<'_, RawRwLock, ()>> {
-        Some(self.collector_lock.read_recursive())
+    fn locked(&self) -> Self::Locked<'_> {
+        self.collector_lock.read_recursive()
     }
 
     #[inline]

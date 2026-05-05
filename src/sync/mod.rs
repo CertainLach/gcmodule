@@ -1,3 +1,31 @@
+//! ## Multi-thread support
+//!
+//! The main type [`Cc`](type.cc.html) works fine in a single-thread environment.
+//!
+//! There are also [`ThreadedObjectSpace`](struct.ThreadedObjectSpace.html)
+//! and [`ThreadedCc`](type.ThreadedCc.html) for multi-thread usecases. Beware
+//! they take more memory, are slower, and a bit harder to use.
+//!
+//! ```
+//! use jrsonnet_gcmodule::{ThreadedObjectSpace, ThreadedCc, Trace, TraceBox};
+//! use std::sync::Mutex;
+//!
+//! type List = ThreadedCc<Mutex<Vec<TraceBox<dyn Trace + Send + Sync>>>>;
+//! let space = ThreadedObjectSpace::default();
+//! {
+//!     let list1: List = space.create(Mutex::new(Default::default()));
+//!     let list2: List = space.create(Mutex::new(Default::default()));
+//!     let thread = std::thread::spawn(move || {
+//!         list1.borrow().lock().unwrap().push(TraceBox(Box::new(list2.clone())));
+//!         list2.borrow().lock().unwrap().push(TraceBox(Box::new(list1.clone())));
+//!     });
+//!     thread.join().unwrap();
+//! }
+//! assert_eq!(space.count_tracked(), 2);
+//! assert_eq!(space.collect_cycles(), 2);
+//! assert_eq!(space.count_tracked(), 0);
+//! ```
+
 pub(crate) mod collect;
 mod ref_count;
 
@@ -54,7 +82,7 @@ impl<T: ?Sized> ThreadedCc<T> {
     /// The borrow lasts until the returned value exits scope.
     pub fn borrow(&self) -> ThreadedCcRef<'_, T> {
         ThreadedCcRef {
-            locked: self.inner().ref_count.locked().unwrap(),
+            locked: self.inner().ref_count.locked(),
             parent: self,
             _phantom: PhantomData,
         }
